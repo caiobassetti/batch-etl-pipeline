@@ -1,3 +1,16 @@
+# Python
+__pycache__/
 .python-version
+*.pyc
+
+# Env
 .env
-data/customers.csv
+
+# Data artifacts
+data/*.csv
+
+# Editors/OS
+.DS_Store
+*.swp
+.idea/
+.vscode/

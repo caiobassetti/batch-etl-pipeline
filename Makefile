@@ -6,7 +6,11 @@ export
 # Helpers
 PSQL=docker exec -i $(DB_CONTAINER) psql -v ON_ERROR_STOP=1 -U $(POSTGRES_USER) -d $(POSTGRES_DB)
 
-.PHONY: up down logs ps psql db_init adminer_shell gen load transform mart test smoke
+.PHONY: check up down reset logs ps psql db_init adminer_shell gen load transform mart smoke test
+
+# Verify local tools & show versions
+check:
+	bash scripts/verify_env.sh
 
 # Start the stack in the background
 up:
@@ -15,6 +19,12 @@ up:
 # Stop and remove containers (preserves volume)
 down:
 	docker compose down
+
+# Hard reset: stop stack and wipe pg_data (destructive!)
+reset:
+	docker compose down -v
+	docker compose up -d
+	$(MAKE) db_init
 
 # Show container health/status
 ps:
