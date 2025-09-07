@@ -36,7 +36,6 @@ jobs:
       ADMINER_CONTAINER: batch_etl_adminer
       ADMINER_PORT: 8080
       SKIP_DOCKER_CHECK: "1"
-      PGPASSWORD: ${{ env.POSTGRES_PASSWORD }}
 
     steps:
       - name: Checkout code
