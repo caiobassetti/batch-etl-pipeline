@@ -5,7 +5,7 @@ export
 # Helpers
 PSQL=docker exec -i $(DB_CONTAINER) psql -v ON_ERROR_STOP=1 -U $(POSTGRES_USER) -d $(POSTGRES_DB)
 
-.PHONY: up down logs ps psql db_init smoke adminer_shell
+.PHONY: up down logs ps psql db_init adminer_shell gen load transform smoke
 
 # Start the stack in the background
 up:
@@ -36,9 +36,38 @@ psql:
 db_init:
 	$(PSQL) -v db_user=$(POSTGRES_USER) -f - < sql/00_create_schemas.sql
 
-# Minimal smoke: verify schemas exist and are accessible
+# Generate tiny CSV fixtures (deterministic)
+gen:
+	python3 scripts/gen_customers.py
+	@echo "✅ Generated data/customers.csv"
+
+# Create raw table & load CSV (idempotent: TRUNCATE before COPY for demo)
+load:
+	$(PSQL) -f - < sql/raw/01_raw_customers.sql
+	$(PSQL) -c "TRUNCATE raw.customers;"
+	$(PSQL) -c "\COPY raw.customers (customer_id,first_name,last_name,email,country_code,signup_date,is_marketing_opt_in) FROM STDIN WITH CSV HEADER" < data/customers.csv
+	@echo "✅ Loaded raw.customers"
+
+# Build stg views/tables
+transform:
+	$(PSQL) -f - < sql/stg/10_stg_customers.sql
+	@echo "✅ Built stg.customers"
+
+# schemas exist, raw/stg have rows, stg PK is unique
 smoke:
-	@echo "Checking schemas raw, stg, mart..."
+	@echo "Checking schema contract..."
 	@$(PSQL) -c "SELECT nspname FROM pg_namespace WHERE nspname IN ('raw','stg','mart') ORDER BY 1;" | grep -E 'raw|stg|mart' >/dev/null \
 		&& echo '✅ Schemas present: raw, stg, mart' \
-		|| (echo '❌ Missing one or more schemas'; exit 1)
+		|| (echo '❌ Missing schemas'; exit 1)
+
+	@echo "Checking row counts..."
+	@raw_cnt="$$( $(PSQL) -t -c "SELECT COUNT(*) FROM raw.customers;" | tr -d '[:space:]' )"; \
+	 stg_cnt="$$( $(PSQL) -t -c "SELECT COUNT(*) FROM stg.customers;" | tr -d '[:space:]' )"; \
+	 [ "$$raw_cnt" -gt 0 ] && [ "$$stg_cnt" -gt 0 ] \
+	   && echo "✅ Rows -> raw: $$raw_cnt, stg: $$stg_cnt" \
+	   || (echo "❌ Empty raw/stg"; exit 1)
+
+	@echo "Checking stg.customer_id uniqueness..."
+	@dups="$$( $(PSQL) -t -c "SELECT COUNT(*) FROM (SELECT customer_id FROM stg.customers GROUP BY customer_id HAVING COUNT(*)>1) s;" | tr -d '[:space:]' )"; \
+	 [ "$$dups" -eq 0 ] && echo "✅ stg.customer_id unique" \
+	 || (echo "❌ stg.customer_id has duplicates"; exit 1)
