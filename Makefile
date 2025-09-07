@@ -54,6 +54,7 @@ db_init:
 
 # Generate tiny CSV fixtures (deterministic)
 gen:
+	mkdir -p data
 	python3 scripts/gen_customers.py
 	@echo "✅ Generated data/customers.csv"
 

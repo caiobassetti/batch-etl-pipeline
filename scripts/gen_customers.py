@@ -1,5 +1,9 @@
-import csv, random, uuid
+import csv, random, uuid, os
+from pathlib import Path
 from datetime import date, timedelta
+
+# Ensure output directory exists (works locally and in CI)
+Path("data").mkdir(parents=True, exist_ok=True)
 
 random.seed(42)
 
@@ -21,16 +25,14 @@ for i in range(N):
     cc = random.choice(countries)
     sd = (start + timedelta(days=random.randint(0, 400))).isoformat()
     opt = random.choice(yn)
-    # Sprinkle a few messy values
     if i % 10 == 0:
-        email = "  " + email.upper() + "  "     # whitespace + uppercase
+        email = "  " + email.upper() + "  "
     if i % 13 == 0:
-        cc = " nl "                             # odd spacing
+        cc = " nl "
     if i % 17 == 0:
-        opt = "Y"                               # another truthy form
+        opt = "Y"
     rows.append([cid, fn, ln, email, cc, sd, opt])
 
-# Add a couple of duplicate business keys to test dedupe
 dup_id = rows[5][0]
 rows.append([dup_id, rows[5][1], rows[5][2], rows[5][3], "NL", "2025-05-01", "true"])
 dup_id2 = rows[7][0]
