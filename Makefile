@@ -4,7 +4,12 @@ SHELL := /bin/bash
 export
 
 # Helpers
-PSQL=docker exec -i $(DB_CONTAINER) psql -v ON_ERROR_STOP=1 -U $(POSTGRES_USER) -d $(POSTGRES_DB)
+ifeq ($(GITHUB_ACTIONS),true)
+  PSQL = psql -v ON_ERROR_STOP=1 -h $(POSTGRES_HOST) -p $(POSTGRES_PORT) -U $(POSTGRES_USER) -d $(POSTGRES_DB)
+else
+  PSQL = docker exec -i $(DB_CONTAINER) psql -v ON_ERROR_STOP=1 -U $(POSTGRES_USER) -d $(POSTGRES_DB)
+endif
+
 
 .PHONY: check up down reset logs ps psql db_init adminer_shell gen load transform mart smoke test
 
