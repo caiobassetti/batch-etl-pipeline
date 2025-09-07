@@ -1,3 +1,4 @@
+SHELL := /bin/bash
 # Load env (ignore missing to allow first-run)
 -include .env
 export
@@ -5,7 +6,7 @@ export
 # Helpers
 PSQL=docker exec -i $(DB_CONTAINER) psql -v ON_ERROR_STOP=1 -U $(POSTGRES_USER) -d $(POSTGRES_DB)
 
-.PHONY: up down logs ps psql db_init adminer_shell gen load transform smoke
+.PHONY: up down logs ps psql db_init adminer_shell gen load transform mart test smoke
 
 # Start the stack in the background
 up:
@@ -53,6 +54,11 @@ transform:
 	$(PSQL) -f - < sql/stg/10_stg_customers.sql
 	@echo "✅ Built stg.customers"
 
+# Build mart views/tables
+mart:
+	$(PSQL) -f - < sql/mart/20_mart_signups_by_country_day.sql
+	@echo "✅ Built mart.signups_by_country_day"
+
 # schemas exist, raw/stg have rows, stg PK is unique
 smoke:
 	@echo "Checking schema contract..."
@@ -71,3 +77,13 @@ smoke:
 	@dups="$$( $(PSQL) -t -c "SELECT COUNT(*) FROM (SELECT customer_id FROM stg.customers GROUP BY customer_id HAVING COUNT(*)>1) s;" | tr -d '[:space:]' )"; \
 	 [ "$$dups" -eq 0 ] && echo "✅ stg.customer_id unique" \
 	 || (echo "❌ stg.customer_id has duplicates"; exit 1)
+
+# Data-quality assertions (fail on any violation)
+test:
+	@echo "Running data-quality checks..."
+	@out="$$( $(PSQL) -t -A -F '|' -f - < tests/dq_checks.sql )"; \
+	awk -F'|' ' \
+		{ printf " • %-28s  violations=%s\n", $$1, $$2; s += $$2 } \
+		END { if (s==0) { print "✅ All data-quality checks passed" } \
+		      else { printf "❌ Data-quality violations: %d\n", s; exit 1 } }' \
+	<<< "$$out"
