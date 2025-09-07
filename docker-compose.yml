@@ -3,13 +3,16 @@ version: "3.9"
 services:
   db:
     image: postgres:16-alpine
-    container_name: batch_etl_demo
+    container_name: ${DB_CONTAINER}
     environment:
-      POSTGRES_USER: batch_etl_user
-      POSTGRES_PASSWORD: batch_etl_pass
-      POSTGRES_DB: batch_etl_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5432:5432" # If 5432 is busy on your host, change to "5433:5432"
+      - target: 5432
+        published: ${POSTGRES_PORT:-5432}
+        protocol: tcp
+        mode: host
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
@@ -20,10 +23,13 @@ services:
 
   adminer:
     image: adminer:4
-    container_name: batch_etl_adminer
+    container_name: ${ADMINER_CONTAINER}
     restart: always
     ports:
-      - "8080:8080"
+      - target: 8080
+        published: ${ADMINER_PORT:-8080}
+        protocol: tcp
+        mode: host
     depends_on:
       db:
         condition: service_healthy

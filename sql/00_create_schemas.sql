@@ -1,0 +1,12 @@
+CREATE SCHEMA IF NOT EXISTS raw;
+COMMENT ON SCHEMA raw IS 'Landing source data';
+
+CREATE SCHEMA IF NOT EXISTS stg;
+COMMENT ON SCHEMA stg IS 'Staging';
+
+CREATE SCHEMA IF NOT EXISTS mart;
+COMMENT ON SCHEMA mart IS 'Analytics';
+
+ALTER SCHEMA raw  OWNER TO :db_user;
+ALTER SCHEMA stg  OWNER TO :db_user;
+ALTER SCHEMA mart OWNER TO :db_user;
