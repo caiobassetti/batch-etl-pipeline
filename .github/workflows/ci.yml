@@ -1,0 +1,65 @@
+# NOTE: Credentials here are for ephemeral CI Postgres only
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  etl:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: batch_etl_user
+          POSTGRES_PASSWORD: batch_etl_pass
+          POSTGRES_DB: batch_etl_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U batch_etl_user -d batch_etl_db"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      DB_CONTAINER: postgres
+      POSTGRES_USER: batch_etl_user
+      POSTGRES_PASSWORD: batch_etl_pass
+      POSTGRES_DB: batch_etl_db
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      ADMINER_CONTAINER: batch_etl_adminer
+      ADMINER_PORT: 8080
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y make python3
+
+      - name: Verify env
+        run: make check
+
+      - name: DB Init
+        run: make db_init
+
+      - name: Generate fixtures
+        run: make gen
+
+      - name: Load → Transform → Mart
+        run: |
+          make load
+          make transform
+          make mart
+
+      - name: Smoke test
+        run: make smoke
+
+      - name: Data quality tests
+        run: make test

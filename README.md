@@ -8,7 +8,7 @@ Minimal, reproducible batch pipeline:
 - **Test** data quality and fail on violations
 
 ## Architecture (high level)
-[CSV generator] -> raw.customers -> stg.customers -> mart.signups_by_country_day
+[CSV generator] -> raw.customers -> stg.customers -> mart.signups_by_country_day<br>
    (Python)     (text, as-landed)  (typed + de-duped)       (KPI view)
 
 ## Schemas
@@ -67,7 +67,7 @@ Login -> System: PostgreSQL, Server: db, DB: ${POSTGRES_DB}, User: ${POSTGRES_US
 | `make psql`      | Open psql inside the DB container                   |
 | `make down`      | Stop/remove containers (volumes preserved)          |
 
-## Data quality (what we assert)
+## Data quality
 
 - `customer_id` is **NOT NULL** and **unique** in `stg`
 - `country_code` ∈ {NL, DE, FR, ES, BR, US, UK, IT, PT}
