@@ -90,6 +90,7 @@ GitHub Actions workflow (.github/workflows/ci.yml) runs on every push/PR:
 
 ## Repo layout
 
+```
  .
 ├─ .github/
 │ └─ workflows/
@@ -118,3 +119,4 @@ GitHub Actions workflow (.github/workflows/ci.yml) runs on every push/PR:
 ├─ .editorconfig 								# enforce LF, tabs in Makefiles
 ├─ .gitattributes 								# normalize LF endings
 └─ README.md
+```
