@@ -60,9 +60,17 @@ jobs:
           ls -l data
           head -5 data/customers.csv
 
-      - name: Load → Transform → Mart
+      - name: Load
         run: |
           make load
+
+      - name: Row counts after load
+        run: |
+          echo "raw count:"
+          PGPASSWORD=$POSTGRES_PASSWORD psql -h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER -d $POSTGRES_DB -t -c "SELECT COUNT(*) FROM raw.customers;"
+
+      - name: Transform → Mart
+        run: |
           make transform
           make mart
 
