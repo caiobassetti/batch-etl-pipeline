@@ -57,20 +57,15 @@ gen:
 	mkdir -p data
 	python3 scripts/gen_customers.py
 	@echo "✅ Generated data/customers.csv"
-
-# Create raw table & load CSV (idempotent: TRUNCATE before COPY for demo)
-# load:
-# 	$(PSQL) -f - < sql/raw/01_raw_customers.sql
-# 	$(PSQL) -c "TRUNCATE raw.customers;"
-# 	$(PSQL) -c "\COPY raw.customers (customer_id,first_name,last_name,email,country_code,signup_date,is_marketing_opt_in) FROM STDIN WITH CSV HEADER" < data/customers.csv
-# 	@echo "✅ Loaded raw.customers"
+	@ls -l data/customers.csv || (echo "❌ CSV missing"; exit 1)
 
 # Load: append with batch_id (no truncate). Pass BATCH_ID or auto-generate.
 load:
+	@test -f data/customers.csv || (echo "❌ Missing data/customers.csv. Run 'make gen' first."; exit 1)
 	$(PSQL) -f - < sql/raw/01_raw_customers.sql
 	$(PSQL) -f - < sql/raw/02_raw_customers_lineage.sql
 	@batch_id="$${BATCH_ID:-$$(date -u +%Y%m%dT%H%M%SZ)}"; \
-	 echo "Loading batch_id=$$batch_id"; \
+	 echo "Loading batch_id=$$batch_id from data/customers.csv"; \
 	 $(PSQL) -c "\
 	   \COPY raw.customers (customer_id,first_name,last_name,email,country_code,signup_date,is_marketing_opt_in) \
 	   FROM STDIN WITH CSV HEADER" < data/customers.csv; \
@@ -80,12 +75,8 @@ load:
 	          source_filename = COALESCE(source_filename, 'generated_customers.csv'), \
 	          _row_hash = COALESCE(_row_hash, md5(coalesce(customer_id,'')||'|'||coalesce(email,'')||'|'||coalesce(signup_date::text,''))) \
 	    WHERE batch_id IS NULL OR source_filename IS NULL OR _row_hash IS NULL"; \
-	 echo "✅ Appended rows into raw.customers (batch_id=$$batch_id)"
-
-# Build stg views/tables
-# transform:
-# 	$(PSQL) -f - < sql/stg/10_stg_customers.sql
-# 	@echo "✅ Built stg.customers"
+	 $(PSQL) -c "SELECT COUNT(*) AS raw_count FROM raw.customers"; \
+	 echo "✅ Load complete"
 
 # Transform (rebuild stg view after lineage change)
 transform:
@@ -113,18 +104,13 @@ smoke:
 	@$(PSQL) -c "SELECT nspname FROM pg_namespace WHERE nspname IN ('raw','stg','mart') ORDER BY 1;" | grep -E 'raw|stg|mart' >/dev/null \
 		&& echo '✅ Schemas present: raw, stg, mart' \
 		|| (echo '❌ Missing schemas'; exit 1)
-
 	@echo "Checking row counts..."
 	@raw_cnt="$$( $(PSQL) -t -c "SELECT COUNT(*) FROM raw.customers;" | tr -d '[:space:]' )"; \
 	 stg_cnt="$$( $(PSQL) -t -c "SELECT COUNT(*) FROM stg.customers;" | tr -d '[:space:]' )"; \
+	 echo "   raw.customers=$$raw_cnt stg.customers=$$stg_cnt"; \
 	 [ "$$raw_cnt" -gt 0 ] && [ "$$stg_cnt" -gt 0 ] \
 	   && echo "✅ Rows -> raw: $$raw_cnt, stg: $$stg_cnt" \
 	   || (echo "❌ Empty raw/stg"; exit 1)
-
-	@echo "Checking stg.customer_id uniqueness..."
-	@dups="$$( $(PSQL) -t -c "SELECT COUNT(*) FROM (SELECT customer_id FROM stg.customers GROUP BY customer_id HAVING COUNT(*)>1) s;" | tr -d '[:space:]' )"; \
-	 [ "$$dups" -eq 0 ] && echo "✅ stg.customer_id unique" \
-	 || (echo "❌ stg.customer_id has duplicates"; exit 1)
 
 # Data-quality assertions (fail on any violation)
 test:

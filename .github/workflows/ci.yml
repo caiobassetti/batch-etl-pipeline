@@ -55,6 +55,11 @@ jobs:
       - name: Generate fixtures
         run: make gen
 
+      - name: Inspect generated CSV
+        run: |
+          ls -l data
+          head -5 data/customers.csv
+
       - name: Load → Transform → Mart
         run: |
           make load
