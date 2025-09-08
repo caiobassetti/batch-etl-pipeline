@@ -65,10 +65,9 @@ load:
 	$(PSQL) -f - < sql/raw/01_raw_customers.sql
 	$(PSQL) -f - < sql/raw/02_raw_customers_lineage.sql
 	@batch_id="$${BATCH_ID:-$$(date -u +%Y%m%dT%H%M%SZ)}"; \
-	 echo "Loading batch_id=$$batch_id from data/customers.csv"; \
-	 $(PSQL) -c "\
-	   \COPY raw.customers (customer_id,first_name,last_name,email,country_code,signup_date,is_marketing_opt_in) \
-	   FROM STDIN WITH CSV HEADER" < data/customers.csv; \
+	 echo "📦 Loading batch_id=$$batch_id from data/customers.csv"; \
+	 # NOTE: use SQL COPY (server statement) but still FROM STDIN, fed by shell redirection
+	 $(PSQL) -c "COPY raw.customers (customer_id,first_name,last_name,email,country_code,signup_date,is_marketing_opt_in) FROM STDIN WITH CSV HEADER" < data/customers.csv; \
 	 $(PSQL) -c "\
 	   UPDATE raw.customers \
 	      SET batch_id = COALESCE(batch_id, '$$batch_id'), \
