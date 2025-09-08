@@ -61,6 +61,9 @@ jobs:
           make transform
           make mart
 
+      - name: Refresh materialized mart
+        run: make mart_mv_build && make mart_mv_refresh
+
       - name: Smoke test
         run: make smoke
 

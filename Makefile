@@ -11,7 +11,7 @@ else
 endif
 
 
-.PHONY: check up down reset logs ps psql db_init adminer_shell gen load transform mart smoke test
+.PHONY: check up down reset logs ps psql db_init adminer_shell gen load transform mart smoke test mart_mv_build mart_mv_refresh
 
 # Verify local tools & show versions
 check:
@@ -59,21 +59,53 @@ gen:
 	@echo "✅ Generated data/customers.csv"
 
 # Create raw table & load CSV (idempotent: TRUNCATE before COPY for demo)
+# load:
+# 	$(PSQL) -f - < sql/raw/01_raw_customers.sql
+# 	$(PSQL) -c "TRUNCATE raw.customers;"
+# 	$(PSQL) -c "\COPY raw.customers (customer_id,first_name,last_name,email,country_code,signup_date,is_marketing_opt_in) FROM STDIN WITH CSV HEADER" < data/customers.csv
+# 	@echo "✅ Loaded raw.customers"
+
+# Load: append with batch_id (no truncate). Pass BATCH_ID or auto-generate.
 load:
 	$(PSQL) -f - < sql/raw/01_raw_customers.sql
-	$(PSQL) -c "TRUNCATE raw.customers;"
-	$(PSQL) -c "\COPY raw.customers (customer_id,first_name,last_name,email,country_code,signup_date,is_marketing_opt_in) FROM STDIN WITH CSV HEADER" < data/customers.csv
-	@echo "✅ Loaded raw.customers"
+	$(PSQL) -f - < sql/raw/02_raw_customers_lineage.sql
+	@batch_id="$${BATCH_ID:-$$(date -u +%Y%m%dT%H%M%SZ)}"; \
+	 echo "Loading batch_id=$$batch_id"; \
+	 $(PSQL) -c "\
+	   \COPY raw.customers (customer_id,first_name,last_name,email,country_code,signup_date,is_marketing_opt_in) \
+	   FROM STDIN WITH CSV HEADER" < data/customers.csv; \
+	 $(PSQL) -c "\
+	   UPDATE raw.customers \
+	      SET batch_id = COALESCE(batch_id, '$$batch_id'), \
+	          source_filename = COALESCE(source_filename, 'generated_customers.csv'), \
+	          _row_hash = COALESCE(_row_hash, md5(coalesce(customer_id,'')||'|'||coalesce(email,'')||'|'||coalesce(signup_date::text,''))) \
+	    WHERE batch_id IS NULL OR source_filename IS NULL OR _row_hash IS NULL"; \
+	 echo "✅ Appended rows into raw.customers (batch_id=$$batch_id)"
 
 # Build stg views/tables
+# transform:
+# 	$(PSQL) -f - < sql/stg/10_stg_customers.sql
+# 	@echo "✅ Built stg.customers"
+
+# Transform (rebuild stg view after lineage change)
 transform:
-	$(PSQL) -f - < sql/stg/10_stg_customers.sql
-	@echo "✅ Built stg.customers"
+	$(PSQL) -f - < sql/stg/11_stg_customers_dedupe_latest.sql
+	@echo "✅ Built stg.customers (latest-by-batch)"
 
 # Build mart views/tables
 mart:
 	$(PSQL) -f - < sql/mart/20_mart_signups_by_country_day.sql
 	@echo "✅ Built mart.signups_by_country_day"
+
+# Materialized mart: build once
+mart_mv_build:
+	$(PSQL) -f - < sql/mart/25_mv_signups_by_country_day.sql
+	@echo "✅ Built mart.mv_signups_by_country_day (materialized)"
+
+# Materialized mart: refresh fast after each load
+mart_mv_refresh:
+	$(PSQL) -c "REFRESH MATERIALIZED VIEW CONCURRENTLY mart.mv_signups_by_country_day"
+	@echo "🔁 Refreshed mart.mv_signups_by_country_day"
 
 # schemas exist, raw/stg have rows, stg PK is unique
 smoke:

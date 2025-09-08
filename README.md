@@ -1,4 +1,4 @@
-# Batch ETL/ELT Pipeline (Local Postgres)
+# Batch ETL/ELT Pipeline (Local Postgres)  ![CI](https://github.com/caiobassetti/batch-etl-pipeline/actions/workflows/ci.yml/badge.svg)
 
 Minimal, reproducible batch pipeline:
 - **Generate** tiny CSV fixtures
